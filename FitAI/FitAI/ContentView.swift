@@ -5,57 +5,75 @@
 //  Created by Dillon Shi on 3/2/24.
 //
 
+import AuthenticationServices
 import SwiftUI
 import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
 
+    @Environment(\.colorScheme) var colorScheme
+    
+    // TODO: Create environment object to hold this data
+    @AppStorage("userId") var userId: String = ""
+    @AppStorage("email") var email: String = ""
+    @AppStorage("firstName") var firstName: String = ""
+    @AppStorage("lastName") var lastName: String = ""
+    
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+        NavigationView {
+            VStack {
+                
+                if userId.isEmpty {
+                    SignInWithAppleButton(.signIn) { request in
+                        
+                        request.requestedScopes = [.email, .fullName]
+                        
+                    } onCompletion: { result in
+                        
+                        switch result {
+                        case .success(let auth):
+                            
+                            switch auth.credential {
+                            case let credential as ASAuthorizationAppleIDCredential:
+                                
+                                // User Id
+                                let userId = credential.user
+                                
+                                // User Info
+                                let email = credential.email
+                                let firstName = credential.fullName?.givenName
+                                let lastName = credential.fullName?.familyName
+                                
+                                self.userId = userId
+                                self.email = email ?? ""
+                                self.firstName = firstName ?? ""
+                                self.lastName = lastName ?? ""
+                                
+                            default:
+                                break
+                            }
+                            
+                        case .failure(let error):
+                            print(error)
+                        }
+                        
                     }
+                    .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+                    .frame(height: 50)
+                    .padding()
+                    .cornerRadius(8)
                 }
-                .onDelete(perform: deleteItems)
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
+                
+                else {
+                    // Signed In
                 }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
+                
             }
-        } detail: {
-            Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
-            }
+            .navigationTitle("Sign In")
         }
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
 }
